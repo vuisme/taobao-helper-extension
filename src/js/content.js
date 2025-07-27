@@ -1402,14 +1402,29 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
                 console.log('Order Helper: First processed order:', processedOrders[0]);
             }
             
-            sendResponse({
-                success: true,
-                orders: processedOrders,
-                offset: result.offset || '',
-                anti_content: result.anti_content || '',
-                page: result.page || page,
-                hasMore: !!result.hasMore
-            });
+            // Kiểm tra xem có cần dịch không
+            if (request.settings && request.settings.enableTranslation && request.settings.geminiApiKey) {
+                console.log('Order Helper: Translating load more orders');
+                translateProducts(processedOrders, request.settings, function(translatedOrders) {
+                    sendResponse({
+                        success: true,
+                        orders: translatedOrders,
+                        offset: result.offset || '',
+                        anti_content: result.anti_content || '',
+                        page: result.page || page,
+                        hasMore: !!result.hasMore
+                    });
+                });
+            } else {
+                sendResponse({
+                    success: true,
+                    orders: processedOrders,
+                    offset: result.offset || '',
+                    anti_content: result.anti_content || '',
+                    page: result.page || page,
+                    hasMore: !!result.hasMore
+                });
+            }
         }).catch(err => {
             console.error('Order Helper: Error in loadMorePDDOrders:', err);
             sendResponse({ success: false, error: err.toString() });

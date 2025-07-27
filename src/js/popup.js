@@ -493,7 +493,8 @@ loadMoreBtn.addEventListener('click', function() {
             action: 'loadMorePDDOrders',
             offset: pddPaging.offset,
             anti_content: pddPaging.anti_content,
-            page: pddPaging.page + 1
+            page: pddPaging.page + 1,
+            settings: settings // Thêm settings để content script biết có cần dịch không
         }, async function(response) {
             if (chrome.runtime.lastError || !response || !response.success) {
                 hideLoading();
