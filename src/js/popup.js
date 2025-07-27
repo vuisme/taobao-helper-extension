@@ -388,8 +388,8 @@ extractBtn.addEventListener('click', function() {
                             } else {
                                 // Process and display orders without translation
                                 await processOrders(bgResponse.orders);
-                                hideLoading();
-                                showStatus(`Đã trích xuất ${bgResponse.orders.length} sản phẩm từ Pinduoduo`);
+                            hideLoading();
+                            showStatus(`Đã trích xuất ${bgResponse.orders.length} sản phẩm từ Pinduoduo`);
                             }
                         } else {
                             hideLoading();
@@ -403,61 +403,61 @@ extractBtn.addEventListener('click', function() {
             // For Taobao, process orders directly
             if (response.orders && response.orders.length > 0) {
                 // Save orders to background script first
+            chrome.runtime.sendMessage({ 
+                action: 'saveOrders', 
+                orders: response.orders 
+            });
+            
+            // Check if translation is enabled
+            if (settings.enableTranslation && settings.geminiApiKey) {
+                // Báo cho background script biết bắt đầu dịch
                 chrome.runtime.sendMessage({ 
-                    action: 'saveOrders', 
-                    orders: response.orders 
+                    action: 'startTranslation',
+                    orders: response.orders,
+                    settings: settings
                 });
                 
-                // Check if translation is enabled
-                if (settings.enableTranslation && settings.geminiApiKey) {
-                    // Báo cho background script biết bắt đầu dịch
-                    chrome.runtime.sendMessage({ 
-                        action: 'startTranslation',
-                        orders: response.orders,
-                        settings: settings
-                    });
-                    
-                    statusMessage.textContent = 'Đang dịch tên và thuộc tính sản phẩm...';
-                    
-                    // Send translation request
-                    chrome.tabs.sendMessage(tabs[0].id, { 
-                        action: 'translateProducts',
-                        products: response.orders,
-                        settings: settings
+                statusMessage.textContent = 'Đang dịch tên và thuộc tính sản phẩm...';
+                
+                // Send translation request
+                chrome.tabs.sendMessage(tabs[0].id, { 
+                    action: 'translateProducts',
+                    products: response.orders,
+                    settings: settings
                     }, async function(translationResponse) {
-                        
-                        if (translationResponse && translationResponse.success) {
-                            await processOrders(translationResponse.products);
-                            
-                            // Báo cho background script biết đã dịch xong
-                            chrome.runtime.sendMessage({ 
-                                action: 'finishTranslation',
-                                orders: translationResponse.products 
-                            }, function() {
-                                hideLoading();
-                                showStatus(`Đã trích xuất và dịch ${translationResponse.products.length} sản phẩm`);
-                            });
-                        } else {
-                            // Fallback to original orders if translation fails
-                            await processOrders(response.orders);
-                            
-                            // Báo cho background script biết dịch thất bại
-                            chrome.runtime.sendMessage({ 
-                                action: 'finishTranslation',
-                                orders: response.orders 
-                            }, function() {
-                                hideLoading();
-                                showStatus(`Đã trích xuất ${response.orders.length} sản phẩm (dịch thất bại)`);
-                            });
-                        }
-                    });
-                } else {
-                    // Process and display orders without translation
-                    await processOrders(response.orders);
                     
-                    // Save orders to background script (đã lưu ở trên rồi)
-                    hideLoading();
-                    showStatus(`Đã trích xuất ${response.orders.length} sản phẩm`);
+                    if (translationResponse && translationResponse.success) {
+                            await processOrders(translationResponse.products);
+                        
+                        // Báo cho background script biết đã dịch xong
+                        chrome.runtime.sendMessage({ 
+                            action: 'finishTranslation',
+                            orders: translationResponse.products 
+                        }, function() {
+                            hideLoading();
+                            showStatus(`Đã trích xuất và dịch ${translationResponse.products.length} sản phẩm`);
+                        });
+                    } else {
+                        // Fallback to original orders if translation fails
+                            await processOrders(response.orders);
+                        
+                        // Báo cho background script biết dịch thất bại
+                        chrome.runtime.sendMessage({ 
+                            action: 'finishTranslation',
+                            orders: response.orders 
+                        }, function() {
+                            hideLoading();
+                            showStatus(`Đã trích xuất ${response.orders.length} sản phẩm (dịch thất bại)`);
+                        });
+                    }
+                });
+            } else {
+                // Process and display orders without translation
+                    await processOrders(response.orders);
+                
+                // Save orders to background script (đã lưu ở trên rồi)
+                hideLoading();
+                showStatus(`Đã trích xuất ${response.orders.length} sản phẩm`);
                 }
             } else {
                 // No orders found, try to get from background script
@@ -535,7 +535,7 @@ loadMoreBtn.addEventListener('click', function() {
             } else {
                 pddPaging.hasMore = false;
                 loadMoreBtn.style.display = 'none';
-                hideLoading();
+            hideLoading();
                 showStatus('Đã tải hết tất cả sản phẩm');
             }
         });
@@ -852,8 +852,8 @@ async function updateTableWithConfig() {
                                 console.error('Failed to copy: ', err);
                                 showStatus('Không thể copy mã vận đơn');
                             });
-                        });
-                    } else {
+                                        });
+                                    } else {
                         cell.textContent = 'N/A';
                     }
                 } else if (columnId.startsWith('custom_')) {
@@ -926,7 +926,7 @@ async function openCustomizeDialog() {
     
     // Show dialog
     if (customizeDialog) {
-        customizeDialog.style.display = 'block';
+    customizeDialog.style.display = 'block';
     } else {
         console.error('Order Helper: customizeDialog element is null!');
     }
@@ -1017,7 +1017,7 @@ async function initSortable() {
         item.insertBefore(dragHandle, item.firstChild);
         
         // Make item draggable
-        item.draggable = true;
+                item.draggable = true;
         
         // Add click event to toggle checkbox (but not when clicking drag handle)
         item.addEventListener('click', async function(e) {

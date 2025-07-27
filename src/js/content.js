@@ -51,6 +51,24 @@ function getElementsByXPath(xpath, context = document) {
     }
 }
 
+// Helper function to find elements containing specific text
+function findElementByText(container, text) {
+    const walker = document.createTreeWalker(
+        container,
+        NodeFilter.SHOW_TEXT,
+        null,
+        false
+    );
+    
+    let node;
+    while (node = walker.nextNode()) {
+        if (node.textContent.includes(text)) {
+            return node.parentElement;
+        }
+    }
+    return null;
+}
+
 // Hàm tạo ID duy nhất cho sản phẩm
 function generateProductId(orderId, productElement, index) {
     // Tạo hash từ nội dung của element để đảm bảo tính duy nhất
@@ -603,24 +621,135 @@ function extractProductData(productItem, orderElement) {
             }
         }
         
-        // Trích xuất trạng thái đơn hàng
-        const statusXPaths = [
-            ".//span[contains(@class, 'status')]",
-            ".//div[contains(@class, 'status')]",
-            ".//td[contains(@class, 'status')]",
-            ".//span[contains(text(), '待付款') or contains(text(), '待发货') or contains(text(), '待收货') or contains(text(), '已完成')]",
-            ".//div[contains(text(), '待付款') or contains(text(), '待发货') or contains(text(), '待收货') or contains(text(), '已完成')]"
+        // Trích xuất trạng thái đơn hàng - cải thiện logic
+        let statusFound = false;
+        
+        // Thử nhiều cách khác nhau để tìm trạng thái
+        const statusSelectors = [
+            // CSS selectors
+            '.status',
+            '.order-status',
+            '.orderStatus',
+            '.tb-status',
+            '.tbStatus',
+            '[class*="status"]',
+            '[class*="Status"]',
+            
+            // Common Taobao status patterns
+            '.tb-order-status',
+            '.order-status-text',
+            '.status-text'
         ];
         
-        for (const xpath of statusXPaths) {
-            const statusElement = getElementByXPath(xpath, productItem);
-            if (statusElement && statusElement.textContent) {
-                const status = statusElement.textContent.trim();
-                if (status.length > 0) {
-                    product.status = status;
-                    break;
+        // Chinese status keywords to search for
+        const statusKeywords = ['待付款', '待发货', '待收货', '已完成', '已发货', '已签收'];
+        
+        // Thử CSS selectors trước
+        for (const selector of statusSelectors) {
+            try {
+                const statusElement = productItem.querySelector(selector);
+                if (statusElement && statusElement.textContent) {
+                    const status = statusElement.textContent.trim();
+                    if (status.length > 0 && status !== 'undefined' && status !== 'null') {
+                        product.status = status;
+                        statusFound = true;
+                        console.log('Taobao Order Helper: Found status via CSS selector:', selector, status);
+                        break;
+                    }
+                }
+            } catch (e) {
+                // Ignore invalid selectors
+            }
+        }
+        
+        // Nếu không tìm thấy bằng CSS, thử tìm theo text content
+        if (!statusFound) {
+            for (const keyword of statusKeywords) {
+                const statusElement = findElementByText(productItem, keyword);
+                if (statusElement && statusElement.textContent) {
+                    const status = statusElement.textContent.trim();
+                    if (status.length > 0 && status !== 'undefined' && status !== 'null') {
+                        product.status = status;
+                        statusFound = true;
+                        console.log('Taobao Order Helper: Found status via text search:', keyword, status);
+                        break;
+                    }
                 }
             }
+        }
+        
+        // Nếu không tìm thấy bằng CSS, thử XPath
+        if (!statusFound) {
+            const statusXPaths = [
+                ".//span[contains(@class, 'status')]",
+                ".//div[contains(@class, 'status')]",
+                ".//td[contains(@class, 'status')]",
+                ".//span[contains(text(), '待付款') or contains(text(), '待发货') or contains(text(), '待收货') or contains(text(), '已完成')]",
+                ".//div[contains(text(), '待付款') or contains(text(), '待发货') or contains(text(), '待收货') or contains(text(), '已完成')]",
+                ".//*[contains(text(), '待付款') or contains(text(), '待发货') or contains(text(), '待收货') or contains(text(), '已完成')]"
+            ];
+            
+            for (const xpath of statusXPaths) {
+                const statusElement = getElementByXPath(xpath, productItem);
+                if (statusElement && statusElement.textContent) {
+                    const status = statusElement.textContent.trim();
+                    if (status.length > 0 && status !== 'undefined' && status !== 'null') {
+                        product.status = status;
+                        statusFound = true;
+                        console.log('Taobao Order Helper: Found status via XPath:', xpath, status);
+                        break;
+                    }
+                }
+            }
+        }
+        
+        // Nếu vẫn không tìm thấy, thử tìm trong toàn bộ order element
+        if (!statusFound) {
+            const orderStatusSelectors = [
+                '.tb-order-status',
+                '.order-status',
+                '.status',
+                '[class*="status"]'
+            ];
+            
+            for (const selector of orderStatusSelectors) {
+                try {
+                    const statusElement = orderElement.querySelector(selector);
+                    if (statusElement && statusElement.textContent) {
+                        const status = statusElement.textContent.trim();
+                        if (status.length > 0 && status !== 'undefined' && status !== 'null') {
+                            product.status = status;
+                            statusFound = true;
+                            console.log('Taobao Order Helper: Found status in order element:', selector, status);
+                            break;
+                        }
+                    }
+                } catch (e) {
+                    // Ignore invalid selectors
+                }
+            }
+            
+            // Nếu vẫn không tìm thấy, thử tìm theo text trong order element
+            if (!statusFound) {
+                for (const keyword of statusKeywords) {
+                    const statusElement = findElementByText(orderElement, keyword);
+                    if (statusElement && statusElement.textContent) {
+                        const status = statusElement.textContent.trim();
+                        if (status.length > 0 && status !== 'undefined' && status !== 'null') {
+                            product.status = status;
+                            statusFound = true;
+                            console.log('Taobao Order Helper: Found status in order element via text:', keyword, status);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Nếu vẫn không tìm thấy, đặt trạng thái mặc định
+        if (!statusFound) {
+            product.status = 'Đang xử lý';
+            console.log('Taobao Order Helper: No status found, using default');
         }
         
         // Mặc định mã vận đơn là rỗng, sẽ được cập nhật sau
