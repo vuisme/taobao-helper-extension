@@ -69,6 +69,50 @@ function findElementByText(container, text) {
     return null;
 }
 
+// Helper function to translate Chinese status to Vietnamese
+function translateStatus(chineseStatus) {
+    const statusMap = {
+        // Basic statuses
+        '待付款': 'Chờ thanh toán',
+        '待发货': 'Chờ giao hàng',
+        '待收货': 'Chờ nhận hàng',
+        '待评价': 'Chờ đánh giá',
+        '已完成': 'Đã hoàn thành',
+        '已发货': 'Đã giao hàng',
+        '已签收': 'Đã ký nhận',
+        '已关闭': 'Đã đóng',
+        '交易已取消': 'Giao dịch đã hủy',
+        '退款成功': 'Hoàn tiền thành công',
+        
+        // Actual Taobao statuses
+        '卖家已发货': 'Người bán đã giao hàng',
+        '物流运输中': 'Đang vận chuyển',
+        '快件已揽收': 'Đã nhận bưu kiện',
+        '交易成功': 'Giao dịch thành công',
+        '交易关闭': 'Giao dịch đã đóng',
+        
+        // Additional variations
+        '运输中': 'Đang vận chuyển',
+        '已揽收': 'Đã nhận bưu kiện',
+        '买家已付款': 'Người mua đã thanh toán'
+    };
+    
+    // Try exact match first
+    if (statusMap[chineseStatus]) {
+        return statusMap[chineseStatus];
+    }
+    
+    // Try partial match
+    for (const [chinese, vietnamese] of Object.entries(statusMap)) {
+        if (chineseStatus.includes(chinese)) {
+            return vietnamese;
+        }
+    }
+    
+    // If no match found, return original with note
+    return chineseStatus + ' (Chưa dịch)';
+}
+
 // Hàm tạo ID duy nhất cho sản phẩm
 function generateProductId(orderId, productElement, index) {
     // Tạo hash từ nội dung của element để đảm bảo tính duy nhất
@@ -222,6 +266,87 @@ function collectFromOrderList() {
         
 
         
+        // Tìm trạng thái đơn hàng trước - áp dụng cho tất cả sản phẩm trong đơn hàng
+        let orderStatus = null;
+        let statusFound = false;
+        
+        // Tìm trạng thái ở cột phải của dòng đầu tiên trong bảng cha
+        const statusKeywords = [
+            '待付款', '待发货', '待收货', '待评价', '已完成', '已发货', '已签收',
+            '卖家已发货', '物流运输中', '快件已揽收', '交易成功', '交易关闭',
+            '交易已取消', '退款成功', '已发货', '运输中', '已签收', '已完成', '已关闭',
+            '买家已付款'
+        ];
+        
+        // Tìm table cha chứa orderElement
+        let table = orderElement.closest('table');
+        if (!table) table = orderElement.querySelector('table');
+        
+        if (table) {
+            const firstRow = table.querySelector('tr');
+            if (firstRow) {
+                const tds = firstRow.querySelectorAll('td');
+                if (tds.length > 0) {
+                    // 1. Tìm ở cột phải trước
+                    const statusCell = tds[tds.length - 1];
+                    const cellText = statusCell.textContent;
+                    
+                    for (const keyword of statusKeywords) {
+                        if (cellText.includes(keyword)) {
+                            orderStatus = translateStatus(keyword);
+                            statusFound = true;
+                            break;
+                        }
+                    }
+                    
+                    // 2. Nếu không thấy, tìm ở tất cả các cột của dòng đầu
+                    if (!statusFound) {
+                        for (let i = 0; i < tds.length; i++) {
+                            const cellText = tds[i].textContent;
+                            
+                            for (const keyword of statusKeywords) {
+                                if (cellText.includes(keyword)) {
+                                    orderStatus = translateStatus(keyword);
+                                    statusFound = true;
+                                    break;
+                                }
+                            }
+                            if (statusFound) break;
+                        }
+                    }
+                }
+            }
+            
+            // 3. Nếu vẫn không thấy, tìm trong toàn bộ text của bảng
+            if (!statusFound) {
+                const tableText = table.textContent;
+                for (const keyword of statusKeywords) {
+                    if (tableText.includes(keyword)) {
+                        orderStatus = translateStatus(keyword);
+                        statusFound = true;
+                        break;
+                    }
+                }
+            }
+        }
+        
+        // 4. Nếu vẫn không tìm thấy, thử tìm trong toàn bộ order element
+        if (!statusFound) {
+            const allText = orderElement.textContent;
+            for (const keyword of statusKeywords) {
+                if (allText.includes(keyword)) {
+                    orderStatus = translateStatus(keyword);
+                    statusFound = true;
+                    break;
+                }
+            }
+        }
+        
+        // Nếu vẫn không tìm thấy, đặt trạng thái mặc định
+        if (!statusFound) {
+            orderStatus = 'Đéo biết';
+        }
+        
         // Tìm các sản phẩm trong đơn hàng - sử dụng XPath cụ thể hơn
         let productsFound = false;
         
@@ -249,6 +374,9 @@ function collectFromOrderList() {
                         // Tạo ID duy nhất cho sản phẩm
                         product.productId = generateProductId(product.orderId, element, i);
                         
+                        // GÁN TRỰC TIẾP trạng thái đơn hàng cho tất cả sản phẩm
+                        product.status = orderStatus;
+                        
                         // Kiểm tra xem sản phẩm đã được thêm chưa để tránh lặp
                         const existingProduct = extractedProducts.find(p => 
                             p.productId === product.productId ||
@@ -256,9 +384,8 @@ function collectFromOrderList() {
                         );
                         
                         if (!existingProduct) {
-        
-                            // Thêm nút "Lấy mã vận đơn" cho sản phẩm
-                            addTrackingButton(element, product);
+                            // Không thêm nút "Lấy mã vận đơn" trên giao diện web nữa
+                            // Chỉ cần ở popup là đủ
                             extractedProducts.push(product);
                         } else {
     
@@ -285,6 +412,9 @@ function collectFromOrderList() {
                             // Tạo ID duy nhất cho sản phẩm
                             product.productId = generateProductId(product.orderId, productItem, i);
                             
+                            // GÁN TRỰC TIẾP trạng thái đơn hàng cho tất cả sản phẩm
+                            product.status = orderStatus;
+                            
                             // Kiểm tra xem sản phẩm đã được thêm chưa để tránh lặp
                             const existingProduct = extractedProducts.find(p => 
                                 p.productId === product.productId ||
@@ -292,9 +422,8 @@ function collectFromOrderList() {
                             );
                             
                             if (!existingProduct) {
-        
-                                // Thêm nút "Lấy mã vận đơn" cho sản phẩm
-                                addTrackingButton(productItem, product);
+                                // Không thêm nút "Lấy mã vận đơn" trên giao diện web nữa
+                                // Chỉ cần ở popup là đủ
                                 extractedProducts.push(product);
                             } else {
         
@@ -621,136 +750,9 @@ function extractProductData(productItem, orderElement) {
             }
         }
         
-        // Trích xuất trạng thái đơn hàng - cải thiện logic
-        let statusFound = false;
-        
-        // Thử nhiều cách khác nhau để tìm trạng thái
-        const statusSelectors = [
-            // CSS selectors
-            '.status',
-            '.order-status',
-            '.orderStatus',
-            '.tb-status',
-            '.tbStatus',
-            '[class*="status"]',
-            '[class*="Status"]',
-            
-            // Common Taobao status patterns
-            '.tb-order-status',
-            '.order-status-text',
-            '.status-text'
-        ];
-        
-        // Chinese status keywords to search for
-        const statusKeywords = ['待付款', '待发货', '待收货', '已完成', '已发货', '已签收'];
-        
-        // Thử CSS selectors trước
-        for (const selector of statusSelectors) {
-            try {
-                const statusElement = productItem.querySelector(selector);
-                if (statusElement && statusElement.textContent) {
-                    const status = statusElement.textContent.trim();
-                    if (status.length > 0 && status !== 'undefined' && status !== 'null') {
-                        product.status = status;
-                        statusFound = true;
-                        console.log('Taobao Order Helper: Found status via CSS selector:', selector, status);
-                        break;
-                    }
-                }
-            } catch (e) {
-                // Ignore invalid selectors
-            }
-        }
-        
-        // Nếu không tìm thấy bằng CSS, thử tìm theo text content
-        if (!statusFound) {
-            for (const keyword of statusKeywords) {
-                const statusElement = findElementByText(productItem, keyword);
-                if (statusElement && statusElement.textContent) {
-                    const status = statusElement.textContent.trim();
-                    if (status.length > 0 && status !== 'undefined' && status !== 'null') {
-                        product.status = status;
-                        statusFound = true;
-                        console.log('Taobao Order Helper: Found status via text search:', keyword, status);
-                        break;
-                    }
-                }
-            }
-        }
-        
-        // Nếu không tìm thấy bằng CSS, thử XPath
-        if (!statusFound) {
-            const statusXPaths = [
-                ".//span[contains(@class, 'status')]",
-                ".//div[contains(@class, 'status')]",
-                ".//td[contains(@class, 'status')]",
-                ".//span[contains(text(), '待付款') or contains(text(), '待发货') or contains(text(), '待收货') or contains(text(), '已完成')]",
-                ".//div[contains(text(), '待付款') or contains(text(), '待发货') or contains(text(), '待收货') or contains(text(), '已完成')]",
-                ".//*[contains(text(), '待付款') or contains(text(), '待发货') or contains(text(), '待收货') or contains(text(), '已完成')]"
-            ];
-            
-            for (const xpath of statusXPaths) {
-                const statusElement = getElementByXPath(xpath, productItem);
-                if (statusElement && statusElement.textContent) {
-                    const status = statusElement.textContent.trim();
-                    if (status.length > 0 && status !== 'undefined' && status !== 'null') {
-                        product.status = status;
-                        statusFound = true;
-                        console.log('Taobao Order Helper: Found status via XPath:', xpath, status);
-                        break;
-                    }
-                }
-            }
-        }
-        
-        // Nếu vẫn không tìm thấy, thử tìm trong toàn bộ order element
-        if (!statusFound) {
-            const orderStatusSelectors = [
-                '.tb-order-status',
-                '.order-status',
-                '.status',
-                '[class*="status"]'
-            ];
-            
-            for (const selector of orderStatusSelectors) {
-                try {
-                    const statusElement = orderElement.querySelector(selector);
-                    if (statusElement && statusElement.textContent) {
-                        const status = statusElement.textContent.trim();
-                        if (status.length > 0 && status !== 'undefined' && status !== 'null') {
-                            product.status = status;
-                            statusFound = true;
-                            console.log('Taobao Order Helper: Found status in order element:', selector, status);
-                            break;
-                        }
-                    }
-                } catch (e) {
-                    // Ignore invalid selectors
-                }
-            }
-            
-            // Nếu vẫn không tìm thấy, thử tìm theo text trong order element
-            if (!statusFound) {
-                for (const keyword of statusKeywords) {
-                    const statusElement = findElementByText(orderElement, keyword);
-                    if (statusElement && statusElement.textContent) {
-                        const status = statusElement.textContent.trim();
-                        if (status.length > 0 && status !== 'undefined' && status !== 'null') {
-                            product.status = status;
-                            statusFound = true;
-                            console.log('Taobao Order Helper: Found status in order element via text:', keyword, status);
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-        
-        // Nếu vẫn không tìm thấy, đặt trạng thái mặc định
-        if (!statusFound) {
-            product.status = 'Đang xử lý';
-            console.log('Taobao Order Helper: No status found, using default');
-        }
+        // Trạng thái sẽ được gán từ bên ngoài (collectFromOrderList)
+        // Không tự tìm trạng thái ở đây nữa
+        product.status = 'Đang xử lý'; // Placeholder, sẽ được ghi đè
         
         // Mặc định mã vận đơn là rỗng, sẽ được cập nhật sau
         product.trackingNumber = '';
@@ -790,7 +792,12 @@ function processPDDOrders(data) {
             quantity: good.goods_number || good.quantity || good.count || 1,
             price: good.goods_price || good.price || 0,
             image: good.thumb_url || '',
-            status: order.order_status_desc || order.status || 'Unknown',
+            status: (() => {
+                const originalStatus = order.order_status_prompt || order.order_status_desc || order.status || 'Unknown';
+                const translatedStatus = translateStatus(originalStatus);
+                console.log('Pinduoduo Order Helper: Processing status for order', order.order_sn, 'Original:', originalStatus, 'Translated:', translatedStatus);
+                return translatedStatus;
+            })(),
             trackingNumber: order.tracking_number || order.trackingNumber || '',
             platform: 'pinduoduo'
           };
@@ -1373,7 +1380,12 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
                                 quantity: good.goods_number || good.quantity || good.count || 1,
                                 price: good.goods_price || good.price || 0,
                                 image: good.thumb_url || '',
-                                status: order.order_status_desc || order.status || 'Unknown',
+                                status: (() => {
+                                    const originalStatus = order.order_status_prompt || order.order_status_desc || order.status || 'Unknown';
+                                    const translatedStatus = translateStatus(originalStatus);
+                                    console.log('Pinduoduo Order Helper (Load More): Processing status for order', order.order_sn, 'Original:', originalStatus, 'Translated:', translatedStatus);
+                                    return translatedStatus;
+                                })(),
                                 trackingNumber: order.tracking_number || order.trackingNumber || '',
                                 platform: 'pinduoduo'
                             };
@@ -1465,12 +1477,12 @@ async function checkOrderStatusFromNhaphangchina(orders, sendResponse) {
                 console.log('Content script: Processing response for trackingNumber:', order.trackingNumber, response);
                 
                 if (response && response.success) {
-                    updatedOrders[i].nhaphangchinaStatus = response.status || 'Đã tìm thấy';
+                    updatedOrders[i].trackingStatus = response.status || 'Đã tìm thấy';
                     checkedCount++;
                     console.log('Content script: Updated order status to:', response.status);
                 } else {
-                    updatedOrders[i].nhaphangchinaStatus = response ? response.status : 'Lỗi kết nối';
-                    console.log('Content script: Order not found or error, status:', updatedOrders[i].nhaphangchinaStatus);
+                    updatedOrders[i].trackingStatus = response ? response.status : 'Lỗi kết nối';
+                    console.log('Content script: Order not found or error, status:', updatedOrders[i].trackingStatus);
                     console.log('Content script: Full response:', response);
                 }
                 
@@ -1479,14 +1491,14 @@ async function checkOrderStatusFromNhaphangchina(orders, sendResponse) {
                     action: 'orderStatusUpdated',
                     orderIndex: i,
                     orderId: order.orderId,
-                    status: updatedOrders[i].nhaphangchinaStatus,
+                    status: updatedOrders[i].trackingStatus,
                     checkedCount: checkedCount,
                     totalCount: updatedOrders.length
                 });
                 
             } catch (error) {
                 console.error('Content script: Error checking order status:', error);
-                updatedOrders[i].nhaphangchinaStatus = 'Lỗi kết nối';
+                updatedOrders[i].trackingStatus = 'Lỗi kết nối';
                 
                 // Send error update to popup
                 chrome.runtime.sendMessage({

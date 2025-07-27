@@ -34,7 +34,7 @@ let extractedOrders = [];
 
 // Column configuration
 let columnConfig = {
-    order: ['image', 'title', 'quantity', 'specs', 'orderId', 'status', 'trackingNumber'],
+    order: ['image', 'title', 'quantity', 'specs', 'orderId', 'status', 'trackingNumber', 'trackingStatus'],
     visible: {
         'image': true,
         'title': true,
@@ -43,6 +43,7 @@ let columnConfig = {
         'orderId': true,
         'status': true,
         'trackingNumber': true,
+        'trackingStatus': true,
     },
     custom: {}
 };
@@ -856,6 +857,9 @@ async function updateTableWithConfig() {
                                     } else {
                         cell.textContent = 'N/A';
                     }
+                } else if (columnId === 'trackingStatus') {
+                    cell.textContent = product.trackingStatus || '';
+                    cell.title = product.trackingStatus || '';
                 } else if (columnId.startsWith('custom_')) {
                     // Handle custom columns
                     const customColumn = columnConfig.custom[columnId];
@@ -888,7 +892,8 @@ function getColumnDisplayName(columnId) {
         'specs': 'Thông số',
         'orderId': 'Mã đơn hàng',
         'status': 'Trạng thái',
-        'trackingNumber': 'Mã vận đơn'
+        'trackingNumber': 'Mã vận đơn',
+        'trackingStatus': 'Tracking Status',
     };
     
     if (columnId.startsWith('custom_')) {
@@ -1333,6 +1338,8 @@ function copyDataToClipboard() {
                     value = product.nhaphangchinaStatus || product.status || '';
                 } else if (columnId === 'trackingNumber') {
                     value = product.trackingNumber || '';
+                } else if (columnId === 'trackingStatus') {
+                    value = product.trackingStatus || '';
                 } else if (columnId.startsWith('custom_')) {
                     const customColumn = columnConfig.custom[columnId];
                     value = customColumn ? (customColumn.value || '') : '';
@@ -1362,7 +1369,7 @@ function copyDataToClipboard() {
 // Reset column config to default
 function resetColumnConfig() {
     columnConfig = {
-        order: ['image', 'title', 'quantity', 'specs', 'orderId', 'status', 'trackingNumber'],
+        order: ['image', 'title', 'quantity', 'specs', 'orderId', 'status', 'trackingNumber', 'trackingStatus'],
         visible: {
             'image': true,
             'title': true,
@@ -1371,6 +1378,7 @@ function resetColumnConfig() {
             'orderId': true,
             'status': true,
             'trackingNumber': true,
+            'trackingStatus': true,
         },
         custom: {}
     };
@@ -1655,12 +1663,15 @@ async function checkOrderStatus() {
             
             // Final update of orders with status information
             if (response.orders) {
-                extractedOrders = response.orders;
-                console.log('Popup: Final update of extractedOrders with nhaphangchina status');
-                
-                updateTableWithConfig().then(() => {
-                    console.log('Popup: Final table update completed');
+                // Map lại để chuyển nhaphangchinaStatus sang trackingStatus
+                extractedOrders = response.orders.map(order => {
+                    if (order.nhaphangchinaStatus) {
+                        order.trackingStatus = order.nhaphangchinaStatus;
+                        delete order.nhaphangchinaStatus;
+                    }
+                    return order;
                 });
+                updateTableWithConfig().then(() => {});
             }
         });
     });
@@ -1725,6 +1736,12 @@ function updateTableRow(orderIndex) {
                     statusCell.style.color = '#6c757d';
                 }
             }
+        }
+        // Update trackingStatus cell
+        const trackingStatusCell = row.querySelector('.col-trackingStatus');
+        if (trackingStatusCell) {
+            trackingStatusCell.textContent = order.trackingStatus || '';
+            trackingStatusCell.title = order.trackingStatus || '';
         }
     }
 } 
