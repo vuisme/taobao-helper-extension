@@ -616,7 +616,9 @@ function extractProductData(productItem, orderElement) {
         orderId: '',
         status: '',
         trackingNumber: '',
-        productId: '' // Sẽ được set sau khi tạo
+        productId: '', // Sẽ được set sau khi tạo
+        purchaseTime: null, // Thêm trường purchaseTime
+        platform: 'taobao' // Bổ sung platform cho Taobao
     };
     
     try {
@@ -756,6 +758,44 @@ function extractProductData(productItem, orderElement) {
         
         // Mặc định mã vận đơn là rỗng, sẽ được cập nhật sau
         product.trackingNumber = '';
+
+        // Extract ngày mua hàng từ orderElement (label "下单时间" hoặc "创建时间" hoặc class create-time)
+        try {
+            let purchaseTime = null;
+            // 1. Tìm theo class create-time
+            const createTimeSpan = orderElement.querySelector('span[class*="create-time"]');
+            if (createTimeSpan && createTimeSpan.textContent) {
+                let dateStr = createTimeSpan.textContent.trim();
+                if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+                    // Nếu chỉ có ngày, thêm giờ mặc định
+                    purchaseTime = new Date(dateStr + 'T00:00:00Z').toISOString();
+                } else if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(dateStr)) {
+                    purchaseTime = new Date(dateStr.replace(/\s+/, 'T') + 'Z').toISOString();
+                }
+            }
+            // 2. Nếu chưa có, tìm theo label 下单时间 hoặc 创建时间
+            if (!purchaseTime) {
+                const timeLabels = ['下单时间', '创建时间'];
+                for (const label of timeLabels) {
+                    const timeElem = Array.from(orderElement.querySelectorAll('p,span,div')).find(el => el.textContent && el.textContent.includes(label));
+                    if (timeElem) {
+                        const match = timeElem.textContent.match(/[:：]\s*(\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2}:\d{2})?)/);
+                        if (match && match[1]) {
+                            let dateStr = match[1];
+                            if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+                                purchaseTime = new Date(dateStr + 'T00:00:00Z').toISOString();
+                            } else if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(dateStr)) {
+                                purchaseTime = new Date(dateStr.replace(/\s+/, 'T') + 'Z').toISOString();
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+            product.purchaseTime = purchaseTime;
+        } catch (e) {
+            product.purchaseTime = null;
+        }
     } catch (error) {
         console.error('Taobao Order Helper: Error extracting product data:', error);
     }
@@ -783,7 +823,22 @@ function processPDDOrders(data) {
       // Ưu tiên order_goods
       const goodsList = order.order_goods || order.goods || order.item_list || order.goods_list || order.items;
       if (goodsList && Array.isArray(goodsList)) {
+        // Lấy thời gian đặt hàng ở cấp order
+        let purchaseTime = null;
+        const timeVal = order.order_time || order.created_time || order.order_create_time || order.create_time;
+        if (timeVal) {
+          let ts = parseInt(timeVal);
+          if (ts > 1e12) ts = Math.floor(ts / 1000);
+          purchaseTime = new Date(ts * 1000).toISOString();
+        }
         goodsList.forEach((good, goodIndex) => {
+          // Fallback: nếu order không có, lấy từ good.create_time
+          let productPurchaseTime = purchaseTime;
+          if (!productPurchaseTime && good.create_time) {
+            let ts = parseInt(good.create_time);
+            if (ts > 1e12) ts = Math.floor(ts / 1000);
+            productPurchaseTime = new Date(ts * 1000).toISOString();
+          }
           const product = {
             orderId: order.order_sn || order.orderSN || order.group_order_id || `pdd_${orderIndex}`,
             productId: `pdd_${order.order_sn || order.orderSN || order.group_order_id || orderIndex}_${goodIndex}`,
@@ -799,7 +854,9 @@ function processPDDOrders(data) {
                 return translatedStatus;
             })(),
             trackingNumber: order.tracking_number || order.trackingNumber || '',
-            platform: 'pinduoduo'
+            platform: 'pinduoduo',
+            purchaseTime: productPurchaseTime,
+            deliveryTime: null // Luôn null, chỉ lấy từ NhapHangChina
           };
           extractedProducts.push(product);
         });
@@ -1371,7 +1428,22 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
                 result.orders.forEach((order, orderIndex) => {
                     const goodsList = order.order_goods || order.goods || order.item_list || order.goods_list || order.items;
                     if (goodsList && Array.isArray(goodsList)) {
+                        // Lấy thời gian đặt hàng ở cấp order
+                        let purchaseTime = null;
+                        const timeVal = order.order_time || order.created_time || order.order_create_time || order.create_time;
+                        if (timeVal) {
+                            let ts = parseInt(timeVal);
+                            if (ts > 1e12) ts = Math.floor(ts / 1000);
+                            purchaseTime = new Date(ts * 1000).toISOString();
+                        }
                         goodsList.forEach((good, goodIndex) => {
+                            // Fallback: nếu order không có, lấy từ good.create_time
+                            let productPurchaseTime = purchaseTime;
+                            if (!productPurchaseTime && good.create_time) {
+                                let ts = parseInt(good.create_time);
+                                if (ts > 1e12) ts = Math.floor(ts / 1000);
+                                productPurchaseTime = new Date(ts * 1000).toISOString();
+                            }
                             const product = {
                                 orderId: order.order_sn || order.orderSN || order.group_order_id || `pdd_${orderIndex}`,
                                 productId: `pdd_${order.order_sn || order.orderSN || order.group_order_id || orderIndex}_${goodIndex}`,
@@ -1387,7 +1459,9 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
                                     return translatedStatus;
                                 })(),
                                 trackingNumber: order.tracking_number || order.trackingNumber || '',
-                                platform: 'pinduoduo'
+                                platform: 'pinduoduo',
+                                purchaseTime: productPurchaseTime,
+                                deliveryTime: null
                             };
                             processedOrders.push(product);
                         });
@@ -1493,6 +1567,31 @@ async function checkOrderStatusFromNhaphangchina(orders, sendResponse) {
                 
                 if (response && response.success) {
                     updatedOrders[i].trackingStatus = response.status || 'Đã tìm thấy';
+                    // Bổ sung extract ngày giao hàng từ response.data (HTML)
+                    if (response.data) {
+                        // Tìm tất cả dòng <tr> có thời gian
+                        const matches = [...response.data.matchAll(/<tr>\s*<td>([^<]+)<\/td>\s*<td[^>]*>[^<]*<\/td>\s*<td>([^<]+)<\/td>/g)];
+                        if (matches.length > 0) {
+                            // Lấy dòng cuối cùng (mới nhất)
+                            const lastRow = matches[matches.length - 1];
+                            const timeStr = lastRow[1].trim(); // VD: '14:24 26/07/2025'
+                            // Chuyển sang ISO 8601 UTC
+                            const [time, date] = timeStr.split(' ');
+                            if (time && date) {
+                                const [hour, minute] = time.split(':');
+                                const [day, month, year] = date.split('/');
+                                // Tạo chuỗi ISO với +07:00
+                                const isoLocal = `${year}-${month}-${day}T${hour}:${minute}:00+07:00`;
+                                const isoUtc = new Date(isoLocal).toISOString();
+                                updatedOrders[i].deliveryTime = isoUtc;
+                            }
+                        }
+                    }
+                    // Cập nhật status: nếu có trackingNumber thì lấy từ trackingStatus, nếu không thì lấy từ status cũ
+                    if (updatedOrders[i].trackingNumber) {
+                        updatedOrders[i].status = updatedOrders[i].trackingStatus || updatedOrders[i].status;
+                    }
+                    // Sau khi cập nhật status và deliveryTime, bổ sung platform
                     checkedCount++;
                     console.log('Content script: Updated order status to:', response.status);
                 } else {

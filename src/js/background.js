@@ -4,32 +4,20 @@
 console.log('Taobao Order Helper: Background script loaded');
 
 let storedOrders = [];
-let translationStatus = {
-    isTranslating: false,
-    originalOrders: [],
-    translatedOrders: [],
-    settings: null,
-    pendingRequest: null
-};
 let pddPagingState = { offset: '', anti_content: '', hasMore: true };
 
 // Load data from storage when service worker starts
-chrome.storage.local.get(['storedOrders', 'translationStatus'], function(result) {
+chrome.storage.local.get(['storedOrders'], function(result) {
     if (result.storedOrders) {
         storedOrders = result.storedOrders;
         console.log('Background script: Loaded', storedOrders.length, 'orders from storage');
-    }
-    if (result.translationStatus) {
-        translationStatus = result.translationStatus;
-        console.log('Background script: Loaded translation status from storage');
     }
 });
 
 // Helper function to save data to storage
 function saveToStorage() {
     chrome.storage.local.set({
-        storedOrders: storedOrders,
-        translationStatus: translationStatus
+        storedOrders: storedOrders
     }, function() {
         console.log('Background script: Data saved to storage');
     });
@@ -113,17 +101,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         case 'saveOrders':
             console.log('Background script: Received saveOrders with', message.orders ? message.orders.length : 0, 'orders');
             if (message.orders && message.orders.length > 0) {
-                console.log('Background script: First order structure:', message.orders[0]);
-                console.log('Background script: First order title field:', message.orders[0].title);
-                console.log('Background script: First order specs field:', message.orders[0].specs);
+                storedOrders = message.orders;
             }
-            storedOrders = message.orders || [];
-            // Lưu offset/anti_content/hasMore nếu có
             if (typeof message.offset !== 'undefined') pddPagingState.offset = message.offset;
             if (typeof message.anti_content !== 'undefined') pddPagingState.anti_content = message.anti_content;
             if (typeof message.hasMore !== 'undefined') pddPagingState.hasMore = message.hasMore;
-            console.log('Background script: Saved', storedOrders.length, 'orders with paging state:', pddPagingState);
-            saveToStorage(); // Save to persistent storage
+            saveToStorage();
             sendResponse({ success: true });
             break;
         case 'getOrders':
@@ -133,8 +116,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 orders: storedOrders,
                 offset: pddPagingState.offset,
                 anti_content: pddPagingState.anti_content,
-                hasMore: pddPagingState.hasMore,
-                translationStatus: translationStatus
+                hasMore: pddPagingState.hasMore
             });
             break;
         case 'updatePDDPaging':
@@ -151,9 +133,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             if (orderIndex !== -1) {
                 storedOrders[orderIndex].trackingNumber = message.trackingNumber;
                 saveToStorage();
-                console.log('Background script: Updated tracking number for order:', message.orderId);
-                
-                // Notify any open popup about the update
                 chrome.runtime.sendMessage({
                     action: 'trackingNumberUpdated',
                     orderId: message.orderId,
@@ -161,34 +140,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 }).catch(err => {
                     console.log('Background script: No popup to notify about tracking update');
                 });
-                
                 sendResponse({ success: true });
             } else {
-                console.log('Background script: Order not found for tracking update:', message.orderId);
                 sendResponse({ success: false, error: 'Order not found' });
             }
             break;
         case 'finishTranslation':
             console.log('Background script: Received finishTranslation');
-            if (translationStatus.isTranslating) {
-                translationStatus.isTranslating = false;
-                translationStatus.originalOrders = message.orders || storedOrders;
-                translationStatus.translatedOrders = message.orders || storedOrders;
-                saveToStorage();
-                console.log('Background script: Translation finished, saved', message.orders ? message.orders.length : 0, 'orders');
-            }
+            storedOrders = message.orders || storedOrders;
+            saveToStorage();
+            console.log('Background script: Translation finished, saved', message.orders ? message.orders.length : 0, 'orders');
             sendResponse({ success: true });
             break;
         case 'clearOrders':
             console.log('Background script: Received clearOrders');
             storedOrders = [];
-            translationStatus = {
-                isTranslating: false,
-                originalOrders: [],
-                translatedOrders: [],
-                settings: null,
-                pendingRequest: null
-            };
             pddPagingState = { offset: '', anti_content: '', hasMore: true };
             saveToStorage();
             console.log('Background script: Cleared all orders and reset state');

@@ -37,6 +37,10 @@
                     <input type="checkbox" id="enableTranslation"> Bật dịch tên và thuộc tính sản phẩm
                 </label>
             </div>
+            <div class="setting-item">
+                <label for="webhookUrl">Webhook URL:</label>
+                <input type="text" id="webhookUrl" placeholder="Nhập webhook URL">
+            </div>
             <div class="settings-buttons">
                 <button id="saveSettingsBtn" class="primary-btn">Lưu cài đặt</button>
                 <button id="closeSettingsBtn" class="secondary-btn">Đóng</button>
@@ -51,6 +55,7 @@
             <button id="customizeBtn" class="secondary-btn" disabled>Tùy chỉnh</button>
             <button id="clearDataBtn" class="secondary-btn" disabled>Xóa dữ liệu</button>
             <button id="loadMoreBtn" class="secondary-btn" style="display:none;">Tải thêm</button>
+            <button id="sendWebhookBtn" class="secondary-btn" disabled>Gửi Webhook</button>
         </div>
         
         <div id="statusMessage" class="status-message"></div>

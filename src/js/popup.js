@@ -22,8 +22,10 @@ const settingsSection = document.getElementById('settingsSection');
 const geminiApiKey = document.getElementById('geminiApiKey');
 const geminiModel = document.getElementById('geminiModel');
 const enableTranslation = document.getElementById('enableTranslation');
+const webhookUrlInput = document.getElementById('webhookUrl');
 const saveSettingsBtn = document.getElementById('saveSettingsBtn');
 const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+const sendWebhookBtn = document.getElementById('sendWebhookBtn');
 
 // Platform indicator elements
 const platformIndicator = document.getElementById('platformIndicator');
@@ -51,8 +53,9 @@ let columnConfig = {
 // Settings configuration
 let settings = {
     geminiApiKey: '',
-    geminiModel: 'gemini-1.5-flash',
-    enableTranslation: false
+    geminiModel: 'gemini-2.5-flash',
+    enableTranslation: false,
+    webhookUrl: ''
 };
 
 // --- Pagination state for Pinduoduo ---
@@ -93,9 +96,13 @@ function loadSettings() {
             settings = result.settings;
             // Update UI with loaded settings
             geminiApiKey.value = settings.geminiApiKey || '';
-            geminiModel.value = settings.geminiModel || 'gemini-1.5-flash';
+            geminiModel.value = settings.geminiModel || 'gemini-2.5-flash';
             enableTranslation.checked = settings.enableTranslation || false;
+            webhookUrlInput.value = settings.webhookUrl || '';
+            // Enable webhook button if URL exists
+            sendWebhookBtn.disabled = !(settings.webhookUrl && settings.webhookUrl.trim().length > 0);
         } else {
+            sendWebhookBtn.disabled = true;
         }
     });
 }
@@ -124,12 +131,18 @@ function saveSettings() {
     settings.geminiApiKey = geminiApiKey.value;
     settings.geminiModel = geminiModel.value;
     settings.enableTranslation = enableTranslation.checked;
-    
+    settings.webhookUrl = webhookUrlInput.value;
     chrome.storage.local.set({ settings: settings }, function() {
-        showStatus('Cài đặt đã được lưu');
         hideSettings();
+        // Enable webhook button if URL exists
+        sendWebhookBtn.disabled = !(settings.webhookUrl && settings.webhookUrl.trim().length > 0);
     });
 }
+
+// Enable/disable webhook button on input change
+webhookUrlInput.addEventListener('input', function() {
+    sendWebhookBtn.disabled = !(webhookUrlInput.value && webhookUrlInput.value.trim().length > 0);
+});
 
 // Platform detection
 function detectPlatform() {
@@ -187,18 +200,14 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Check if there are already extracted orders in background script
     chrome.runtime.sendMessage({ action: 'getOrders' }, async function(response) {
-        if (response.success && response.orders && response.orders.length > 0) {
-            extractedOrders = response.orders;
-            
+        await loadOrdersFromStorage(); // Ưu tiên lấy bản dịch nếu có
+        if (extractedOrders.length > 0) {
             // Auto-resize popup to fit content BEFORE updating table
             adjustPopupSize();
-            
             // Update table after popup size is set
             await updateTableWithConfig();
             enableButtons();
-            
             showStatus(`Đã tải ${extractedOrders.length} sản phẩm từ phiên làm việc trước`);
-            
             // Lấy paging state từ background.js nếu có
             if (response.offset !== undefined || response.anti_content !== undefined) {
                 pddPaging.offset = response.offset || '';
@@ -214,7 +223,6 @@ document.addEventListener('DOMContentLoaded', function() {
             thead.innerHTML = '';
             tbody.innerHTML = '';
         }
-        
         // Kiểm tra nếu đang trong quá trình dịch
         if (response.translationStatus && response.translationStatus.isTranslating) {
             checkPendingTranslation();
@@ -232,6 +240,48 @@ document.addEventListener('DOMContentLoaded', function() {
         openCustomizeDialog();
     });
     clearDataBtn.addEventListener('click', clearAllData);
+    sendWebhookBtn.addEventListener('click', async function() {
+        if (!settings.webhookUrl || !settings.webhookUrl.trim()) {
+            showError('Vui lòng nhập Webhook URL trong cài đặt!');
+            return;
+        }
+        if (!Array.isArray(extractedOrders) || extractedOrders.length === 0) {
+            showError('Không có đơn hàng nào để gửi!');
+            return;
+        }
+        sendWebhookBtn.disabled = true;
+        showStatus('Đang gửi dữ liệu đến webhook...');
+        try {
+            // Map dữ liệu sang đúng cấu trúc SQL
+            const mappedOrders = extractedOrders.map(order => ({
+                orderid: order.orderId || null,
+                product_name: order.title || null,
+                product_attributes: order.specs || null,
+                quantity: order.quantity !== undefined ? parseInt(order.quantity) || 1 : 1,
+                purchase_time: order.purchaseTime || null,
+                delivery_time: order.deliveryTime || null,
+                product_image_url: order.image || null,
+                tracking_code: order.trackingNumber || null,
+                status: order.status || null,
+                platform: order.platform || null // Bổ sung trường platform
+            }));
+            const response = await fetch(settings.webhookUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(mappedOrders)
+            });
+            if (response.ok) {
+                showStatus('Đã gửi thành công đến webhook!');
+            } else {
+                showError('Gửi webhook thất bại: ' + response.status + ' ' + response.statusText);
+            }
+        } catch (err) {
+            showError('Lỗi gửi webhook: ' + err.message);
+        }
+        sendWebhookBtn.disabled = false;
+    });
     
     // Add event listeners for customize dialog buttons
     closeDialogBtn.addEventListener('click', closeCustomizeDialog);
@@ -1681,10 +1731,12 @@ async function checkOrderStatus() {
 // Load orders from storage
 async function loadOrdersFromStorage() {
     return new Promise((resolve) => {
-        chrome.storage.local.get(['extractedOrders'], function(result) {
-            if (result.extractedOrders) {
-                extractedOrders = result.extractedOrders;
+        chrome.storage.local.get(['storedOrders'], function(result) {
+            if (result.storedOrders) {
+                extractedOrders = result.storedOrders;
                 console.log('Popup: Loaded orders from storage:', extractedOrders.length);
+            } else {
+                extractedOrders = [];
             }
             resolve();
         });
