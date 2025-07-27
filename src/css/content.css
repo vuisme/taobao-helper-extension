@@ -1,0 +1,66 @@
+/* Styles for the Taobao Order Helper */
+
+/* Notification */
+.taobao-order-helper-notification {
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #333;
+}
+
+/* Get tracking button */
+.taobao-order-helper-get-tracking-btn {
+    transition: background-color 0.2s ease;
+}
+
+.taobao-order-helper-get-tracking-btn:hover {
+    background-color: #ff8c33 !important;
+}
+
+.taobao-order-helper-get-tracking-btn:active {
+    background-color: #e55e00 !important;
+}
+
+.taobao-order-helper-get-tracking-btn:disabled {
+    background-color: #ffaa66 !important;
+    cursor: default !important;
+}
+
+/* View detail button */
+.taobao-order-helper-view-detail-btn {
+    transition: background-color 0.2s ease;
+}
+
+.taobao-order-helper-view-detail-btn:hover {
+    background-color: #ff8c33 !important;
+}
+
+.taobao-order-helper-view-detail-btn:active {
+    background-color: #e55e00 !important;
+}
+
+/* Copy button */
+#copyTrackingBtn {
+    transition: background-color 0.2s ease;
+}
+
+#copyTrackingBtn:hover {
+    background-color: #ff8c33 !important;
+}
+
+#copyTrackingBtn:active {
+    background-color: #e55e00 !important;
+}
+
+/* Close button */
+#closeNotificationBtn {
+    transition: background-color 0.2s ease;
+}
+
+#closeNotificationBtn:hover {
+    background-color: #ddd !important;
+}
+
+#closeNotificationBtn:active {
+    background-color: #ccc !important;
+} 

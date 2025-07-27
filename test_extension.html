@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Extension</title>
+</head>
+<body>
+    <h1>Test Extension</h1>
+    <p>Mở Developer Tools (F12) và xem Console để kiểm tra:</p>
+    <ul>
+        <li>Content script được load chưa</li>
+        <li>Background script kết nối được không</li>
+        <li>Platform detection hoạt động không</li>
+    </ul>
+    
+    <script>
+        // Test page script
+        console.log('Test page loaded');
+        
+        // Simulate Pinduoduo environment
+        window.location.hostname = 'mobile.yangkeduo.com';
+        
+        // Add some test data
+        localStorage.pdduid = '1148237477216';
+        localStorage.verifyauthtoken = 'kHjYessI0P6JAbtVpO8-eA1a8070001b322f86d';
+        
+        console.log('Test environment set up');
+    </script>
+</body>
+</html> 

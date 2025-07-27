@@ -1,0 +1,49 @@
+{
+  "manifest_version": 3,
+  "name": "Taobao Order Helper",
+  "version": "1.0",
+  "description": "Extract order information from Taobao",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "clipboardWrite",
+    "cookies"
+  ],
+  "host_permissions": [
+    "https://*.taobao.com/*",
+    "https://*.tmall.com/*",
+    "https://*.yangkeduo.com/*",
+    "https://mobile.yangkeduo.com/*",
+    "https://generativelanguage.googleapis.com/*",
+    "https://*.nhaphangchina.vn/*"
+  ],
+  "action": {
+    "default_popup": "html/popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.taobao.com/*",
+        "https://*.tmall.com/*",
+        "https://*.yangkeduo.com/*",
+        "https://mobile.yangkeduo.com/*",
+        "https://*.nhaphangchina.vn/*"
+      ],
+      "js": ["js/content.js", "js/debug-helper.js"]
+    }
+  ],
+  "background": {
+    "service_worker": "js/background.js"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["images/*"],
+      "matches": [
+        "https://*.taobao.com/*",
+        "https://*.tmall.com/*",
+        "https://*.yangkeduo.com/*",
+        "https://mobile.yangkeduo.com/*"
+      ]
+    }
+  ]
+} 

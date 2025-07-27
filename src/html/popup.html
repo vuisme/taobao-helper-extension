@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Order Helper</title>
+    <link rel="stylesheet" href="../css/popup.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Order Helper</h1>
+            <button id="settingsBtn" class="settings-icon" title="Cài đặt">⚙️</button>
+        </div>
+        
+        <div id="platformIndicator" class="platform-indicator">
+            <span id="platformText">Đang tải...</span>
+        </div>
+        
+        <!-- Settings Section -->
+        <div id="settingsSection" class="settings-section" style="display: none;">
+            <h3>Cài đặt Gemini API</h3>
+            <div class="setting-item">
+                <label for="geminiApiKey">API Key:</label>
+                <input type="password" id="geminiApiKey" placeholder="Nhập Gemini API key">
+            </div>
+            <div class="setting-item">
+                <label for="geminiModel">Model:</label>
+                <select id="geminiModel">
+                    <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                    <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite</option>
+                    <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+                    <option value="gemini-2.0-flash-lite">Gemini 2.0 Flash Lite</option>
+                </select>
+            </div>
+            <div class="setting-item">
+                <label>
+                    <input type="checkbox" id="enableTranslation"> Bật dịch tên và thuộc tính sản phẩm
+                </label>
+            </div>
+            <div class="settings-buttons">
+                <button id="saveSettingsBtn" class="primary-btn">Lưu cài đặt</button>
+                <button id="closeSettingsBtn" class="secondary-btn">Đóng</button>
+            </div>
+        </div>
+        
+        <div class="button-group">
+            <button id="extractBtn" class="primary-btn">Trích xuất</button>
+            <button id="getAllTrackingBtn" class="secondary-btn" disabled style="display:none;">Lấy tất cả mã vận đơn</button>
+            <button id="checkStatusBtn" class="secondary-btn" disabled style="display:none;">Kiểm tra trạng thái</button>
+            <button id="copyBtn" class="secondary-btn" disabled>Copy dữ liệu</button>
+            <button id="customizeBtn" class="secondary-btn" disabled>Tùy chỉnh</button>
+            <button id="clearDataBtn" class="secondary-btn" disabled>Xóa dữ liệu</button>
+            <button id="loadMoreBtn" class="secondary-btn" style="display:none;">Tải thêm</button>
+        </div>
+        
+        <div id="statusMessage" class="status-message"></div>
+        <div id="loading" class="loading" style="display: none;">Đang xử lý...</div>
+        
+        <div class="table-container">
+            <table id="orderTable">
+                <thead>
+                    <tr>
+                        <th class="col-image">Hình ảnh</th>
+                        <th class="col-title">Tên sản phẩm</th>
+                        <th class="col-quantity">SL</th>
+                        <th class="col-specs">Thông số</th>
+                        <th class="col-orderId">Mã đơn hàng</th>
+                        <th class="col-status">Trạng thái</th>
+                        <th class="col-trackingNumber">Mã vận đơn</th>
+                    </tr>
+                </thead>
+                <tbody id="orderTableBody">
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Customize Dialog -->
+        <div id="customizeDialog" class="dialog-overlay" style="display: none;">
+            <div class="dialog">
+                <h3>Tùy chỉnh cột hiển thị</h3>
+                <div class="column-list" id="columnList">
+                    <label><input type="checkbox" data-column="image" checked> Hình ảnh</label>
+                    <label><input type="checkbox" data-column="title" checked> Tên sản phẩm</label>
+                    <label><input type="checkbox" data-column="quantity" checked> SL</label>
+                    <label><input type="checkbox" data-column="specs" checked> Thông số</label>
+                    <label><input type="checkbox" data-column="orderId" checked> Mã đơn hàng</label>
+                    <label><input type="checkbox" data-column="status" checked> Trạng thái</label>
+                    <label><input type="checkbox" data-column="trackingNumber" checked> Mã vận đơn</label>
+                </div>
+                <div class="custom-column">
+                    <input type="text" id="customColumnName" placeholder="Tên cột tùy chỉnh">
+                    <button id="addCustomColumnBtn">Thêm cột</button>
+                </div>
+                <div class="dialog-buttons">
+                    <button id="applyCustomizeBtn" class="primary-btn">Áp dụng</button>
+                    <button id="cancelCustomizeBtn" class="secondary-btn">Hủy</button>
+                    <button id="closeDialogBtn" class="secondary-btn">Đóng</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="../js/popup.js"></script>
+</body>
+</html> 
